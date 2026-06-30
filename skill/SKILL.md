@@ -43,10 +43,24 @@ If any is false, don't call fusion: do the work yourself, or answer directly.
 ## How to call it
 
 ```
-fusion({ prompt: "<the specific question for the panel>", context: "<the dossier: code, errors, what you tried, constraints>" })
+fusion({
+  prompt: "<the specific question for the panel>",
+  context: "<the dossier: code, errors, what you tried, constraints>",
+  persona: "<optional — a persona id from list_personas if a non-default lens fits>"
+})
 ```
 
-`context` is where the dossier goes — it's included with the prompt for every candidate. Put the concrete material there; keep the `prompt` the crisp question you want answered.
+`context` is where the dossier goes — it's included with the prompt for every candidate. Put the concrete material there; keep the `prompt` the crisp question you want answered. `persona` is optional — choose it once per session via the steps below; don't call `list_personas` before every fusion.
+
+## Persona selection (once per session, before your first fusion)
+
+`fusion` applies a **persona** — the lens the panel reasons through (e.g. code reviewer, researcher, architect). The dashboard always has one persona marked `active`, and if you pass no `persona` that active one is used. The active persona is not necessarily right for *this* task, so choose deliberately:
+
+1. **Call `list_personas` once** at the start of a session, or when the task type clearly shifts (review → research → architecture). It returns `{ id, name, description, builtin, active }` per persona.
+2. **Pick the persona that fits the work** — a code-review/QA persona for a diff review, a research persona for source synthesis, an architecture persona for a plan review.
+3. **Pass its `id` as `persona`** in the `fusion` call.
+
+Don't call `list_personas` before every fusion — it's a once-per-session (or per-shift) check, not a per-call ceremony. If no persona fits better than the currently-active one, skip the override and let the active one stand.
 
 ## Going deeper (read on demand)
 

@@ -16,6 +16,7 @@ import { activityRouter } from "./api/activity.js";
 import { statusRouter } from "./api/status.js";
 import { runtimeRouter } from "./api/runtime.js";
 import { personasRouter } from "./api/personas.js";
+import { fusionRouter } from "./api/fusion.js";
 import { loadConfig } from "../config/store.js";
 import { isConfigured } from "../config/completeness.js";
 import { VERSION } from "../util/version.js";
@@ -53,6 +54,9 @@ export async function startUiServer(options: UiServerOptions = {}): Promise<{ ap
   // (dashboard + agent + CLI consumers); runtime returns ephemeral live-fusion state.
   app.use("/api/runtime", runtimeRouter(db));
   app.use("/api/personas", personasRouter());
+  // Feature 009: POST /api/fusion — the Playground runs a fusion directly in-process
+  // with source:"ui" (activates feature 006's dormant persona-policy exemption).
+  app.use("/api/fusion", fusionRouter(db));
   // /api/health is a liveness ping (kept stable for back-compat) but now carries
   // version + configured so a single call tells you both "is it up" and "is it ready".
   app.get("/api/health", (_req, res) => {

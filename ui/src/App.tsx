@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, Route, Routes } from "react-router-dom";
+import { Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { api, type AppConfig } from "./api";
-import { CandidatesPage } from "./pages/Candidates";
-import { JudgePage } from "./pages/Judge";
-import { ApiKeysPage } from "./pages/ApiKeys";
+import { PlaygroundPage } from "./pages/Playground";
+import { SettingsPage } from "./pages/Settings";
 import { DashboardPage } from "./pages/Dashboard";
 import { GenerationsPage } from "./pages/Generations";
-import { PersonasPage } from "./pages/Personas";
 import { ErrorsPage } from "./pages/Errors";
 
 export default function App() {
@@ -41,12 +39,10 @@ export default function App() {
         </div>
         <nav className="flex gap-1 text-sm">
           {[
+            ["/playground", "Playground"],
             ["/dashboard", "Dashboard"],
             ["/generations", "Generations"],
-            ["/candidates", "Candidates"],
-            ["/judge", "Judge"],
-            ["/personas", "Personas"],
-            ["/keys", "API Keys"],
+            ["/settings", "Settings"],
             ["/errors", "Errors"],
           ].map(([to, label]) => (
             <NavLink
@@ -94,7 +90,7 @@ export default function App() {
         <div className="mx-auto mt-4 max-w-5xl rounded-md bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
           OpenFusion isn't configured yet. Add ≥2 candidates, a judge, and an API key for each referenced provider to enable the{" "}
           <code className="rounded bg-black/30 px-1">fusion</code> tool.{" "}
-          <Link to="/candidates" className="underline">
+          <Link to="/settings/candidates" className="underline">
             Start with candidates →
           </Link>
         </div>
@@ -102,14 +98,19 @@ export default function App() {
 
       <main className="mx-auto max-w-5xl px-4 py-6">
         <Routes>
-          <Route path="/" element={<DashboardPage />} />
+          <Route path="/" element={<PlaygroundPage />} />
+          <Route path="/playground" element={<PlaygroundPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/generations" element={<GenerationsPage />} />
           <Route path="/errors" element={<ErrorsPage />} />
-          <Route path="/candidates" element={<CandidatesPage config={config} onChanged={refresh} />} />
-          <Route path="/judge" element={<JudgePage config={config} onChanged={refresh} />} />
-          <Route path="/personas" element={<PersonasPage />} />
-          <Route path="/keys" element={<ApiKeysPage config={config} />} />
+          {/* Settings shell (feature 009): the four config pages consolidated under one tab. */}
+          <Route path="/settings" element={<Navigate to="/settings/candidates" replace />} />
+          <Route path="/settings/:section" element={<SettingsPage config={config} onChanged={refresh} />} />
+          {/* Back-compat redirects: old top-level config paths → their new /settings/* homes. */}
+          <Route path="/candidates" element={<Navigate to="/settings/candidates" replace />} />
+          <Route path="/judge" element={<Navigate to="/settings/judge" replace />} />
+          <Route path="/personas" element={<Navigate to="/settings/personas" replace />} />
+          <Route path="/keys" element={<Navigate to="/settings/keys" replace />} />
         </Routes>
       </main>
     </div>

@@ -117,6 +117,17 @@ export interface FusionRuntimeStatus {
   fusions: ActiveFusion[];
 }
 
+/** Response from POST /api/fusion — the Playground API (feature 009). A thin projection of the
+ *  server-side FusionResult + the activityId. Fields are omitted (not null) when not applicable. */
+export interface PlaygroundFusionResponse {
+  activityId?: string;
+  ok: boolean;
+  status: "success" | "partial" | "error";
+  answer?: string;
+  error?: string;
+  needsConfig?: boolean;
+}
+
 async function getJSON<T>(url: string): Promise<T> {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
@@ -159,6 +170,11 @@ export const api = {
     );
   },
   getActivityDetail: (id: string) => getJSON<Activity>(`/api/activity/${id}`),
+  /** Feature 009 — run a fusion from the browser (the Playground is the MCP client). Server-side
+   *  source:"ui" makes the call persona-policy-exempt. Holds until the fusion completes; poll
+   *  getStatus() in parallel for live progress. */
+  runFusion: (body: { prompt: string; context?: string; persona?: string }) =>
+    sendJSON<PlaygroundFusionResponse>("POST", "/api/fusion", body),
   getPersonas: () => getJSON<{ personas: Persona[]; activePersona: string; personaPolicy: "strict" | "allow-override" }>("/api/personas"),
   createPersona: (p: Omit<Persona, "id">) => sendJSON<Persona>("POST", "/api/personas", p),
   updatePersona: (id: string, patch: Partial<Persona> | { reset: true }) =>
