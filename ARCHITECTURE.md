@@ -61,9 +61,10 @@ openfusion/
 │   │   ├── schema.ts       # zod schemas: candidates, judge, settings
 │   │   ├── store.ts        # read/write config.json + secrets.enc
 │   │   ├── crypto.ts       # AES-256-GCM, machine-bound master.key
-│   │   └── completeness.ts # isConfigured(): ≥2 candidates, judge set, all keys present
+│   │   └── completeness.ts # isConfigured(): ≥2 candidates, judge set, all keys present (keyless providers exempt)
 │   ├── providers/
-│   │   └── pi-ai-bridge.ts # getModel() + complete() wrapper; injects apiKey per call
+│   │   ├── pi-ai-bridge.ts # getModel() + complete() wrapper; injects apiKey per call
+│   │   └── custom-providers.ts # rapid-mlx + ollama-cloud (OpenAI-compatible); dynamic model discovery
 │   ├── store/
 │   │   ├── db.ts           # better-sqlite3 init + migrations (WAL mode)
 │   │   ├── activity.ts     # one activity row per fusion + N+2 sub-call rows
@@ -103,7 +104,7 @@ Progress emitted via `extra.sendNotification({ method: "notifications/progress",
 - **`secrets.enc`** (AES-256-GCM encrypted): `{ providers: { openai: {apiKey}, anthropic: {apiKey}, ... } }` — **one key per provider**, shared across all candidate slots + judge that use it (e.g. one OPENAI key, not one per slot).
 - **`master.key`** — random 256-bit key generated on first run, `chmod 600`. Machine-bound; used to encrypt/decrypt `secrets.enc`. (Simpler + sufficient for a local single-user tool; avoids native keychain deps.)
 
-`isConfigured()` = `candidates.length ≥ 2 && judge set && every referenced provider has a key`. Minimum **2**, maximum **5** candidates (enforced in schema + UI).
+`isConfigured()` = `candidates.length ≥ 2 && judge set && every referenced provider that needs one has a key` (keyless providers — currently `rapid-mlx` — are exempt; see `KEYLESS_PROVIDERS` in `src/providers/custom-providers.ts`). Minimum **2**, maximum **5** candidates (enforced in schema + UI).
 
 ## Provider Layer (`@earendil-works/pi-ai`)
 
@@ -130,10 +131,11 @@ All on `127.0.0.1` only (holds keys — never expose externally). No CORS (same-
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET / PUT | `/api/config` | Read/write `config.json` (model choices + settings) |
-| GET | `/api/secrets` | Masked key **presence** per provider (never the raw key) |
+| GET | `/api/secrets` | Masked key **presence** per provider (never the raw key) + `keyless: string[]` |
 | PUT | `/api/secrets` | Set a provider's key (encrypted before write) |
-| GET | `/api/providers` | pi-ai `getProviders()` |
-| GET | `/api/providers/:p/models` | pi-ai `getModels(p)` |
+| GET | `/api/providers` | `{ providers: {id, name, discoverable}[] }` — pi-ai + custom providers |
+| GET | `/api/providers/:p/models` | `getModels(p)` merged with discovered models for discoverable providers; `+error` on auth failure |
+| GET | `/api/providers/:p/discover` | Live `/v1/models` fetch for discoverable providers (rapid-mlx, ollama-cloud); `404` for others |
 | POST | `/api/test` | Tiny pi-ai ping to validate a provider+model+key before save |
 | GET | `/api/stats` | Aggregated dashboard data (KPIs + by-model/by-day) |
 | GET | `/api/activity` | Paginated activity log, expandable to sub-calls |

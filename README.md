@@ -27,6 +27,45 @@ OpenRouter showed that **synthesizing the outputs of several models consistently
 > ### ✨ The Fable 5 opportunity
 > OpenRouter's headline finding: a budget panel of cheap models, fused, landed **within ~1% of Claude Fable 5** on deep research — at roughly half the price. **OpenFusion lets you build that budget panel yourself, with the cheapest models from any providers you like.** Fable-5-class answers, at budget-panel cost, from the agent you already use.
 
+## Quick start
+
+Zero to your first fusion in ~5 minutes. Requires **Node.js 22+**.
+
+**1. Install:**
+
+```bash
+npm install -g openfusion-mcp
+```
+
+**2. Set up your project** — register OpenFusion with your MCP client and install the agent skill:
+
+```bash
+openfusion-setup
+```
+
+The interactive installer detects your client (Claude Code, Cursor, Cline, Zed, Codex, Gemini CLI, ZCode, …), writes its MCP config, and drops the `openfusion` skill into the right place. Then **restart your client** so it spawns the server.
+
+**3. Launch the dashboard.** It auto-opens at `http://localhost:9077` when your client first starts OpenFusion — or run it standalone anytime:
+
+```bash
+openfusion-ui          # always-on dashboard (no client needed)
+```
+
+Add **2–5 candidate models** + a **judge** + an **API key** per provider (use **Test** to validate each; keyless providers like `rapid-mlx`/`ollama-cloud` need none). The **● Configured** badge turns green and `fusion` works immediately — no restart.
+
+**4. Use the skill.** The installed `openfusion` skill teaches your agent *when* and *how* to call fusion: do the legwork first (read, search, reproduce), then bring a prepared dossier and call it once:
+
+```
+fusion({
+  prompt:  "Should I use a queue or a streaming pull for this worker?",
+  context: "<the relevant code, constraints, and what you've tried>"
+})
+```
+
+Your agent now has a council of models on demand.
+
+> Prefer `npx` over a global install, or building from source? See **[Install](#install)** below.
+
 ## How it works
 
 OpenFusion is a **fusion engine, not an agent**. It doesn't browse, doesn't call tools, doesn't do research itself — you give it the prompt (and any context you've gathered), and it does one thing very well:
@@ -68,7 +107,7 @@ Requires **Node.js 22+**. Published to npm — no clone or build needed.
    npx openfusion-setup        # interactive: picks your client, writes its config, installs the agent skill
    ```
 2. **Restart your MCP client** so it loads OpenFusion. The client spawns the server, which on first run prints a banner and **opens the dashboard** at `http://localhost:9077`.
-3. **Configure in the dashboard:** add 2–5 candidate models + a judge + an API key per provider (use **Test** to validate each). The **● Configured** badge turns green and `fusion` works immediately.
+3. **Configure in the dashboard:** add 2–5 candidate models + a judge + an API key per provider (use **Test** to validate each; keyless providers like `rapid-mlx`/`ollama-cloud` need none). The **● Configured** badge turns green and `fusion` works immediately.
 
 That's it — the `fusion` + `open_dashboard` tools are now available to your agent.
 
@@ -96,7 +135,7 @@ OpenFusion stores config, encrypted keys, and the SQLite DB under `OPENFUSION_HO
 ### Configure
 
 1. Open **http://localhost:9077** (or start the dashboard anytime with `npx openfusion-ui`, or `node dist/ui-only.js` from source).
-2. Add **2–5 candidate models** (provider + model each), pick a **judge**, and enter an **API key** per referenced provider. Use **Test** to validate each before saving.
+2. Add **2–5 candidate models** (provider + model each), pick a **judge**, and enter an **API key** per referenced provider. Use **Test** to validate each before saving. Keyless providers need no key — currently **`rapid-mlx`** (Apple-Silicon local inference via the rapid-MLX OpenAI-compatible server) and **`ollama-cloud`** (Ollama's hosted endpoint) ship built in; the model picker auto-discovers their available models.
 3. The **● Configured** badge turns green → the `fusion` tool works immediately (no restart).
 
 Keys are AES-256-GCM encrypted at rest (`secrets.enc` + a chmod-600 machine-bound `master.key`); the dashboard binds to `127.0.0.1` only.

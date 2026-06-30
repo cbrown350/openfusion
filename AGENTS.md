@@ -85,7 +85,8 @@ One Node process. The MCP server speaks JSON-RPC over stdio; the Express server 
 | Fusion engine | `src/fusion/fusion.ts` | Orchestrate fan-out → judge step 1 → judge step 2 |
 | Worker | `src/fusion/worker.ts` | Single-shot candidate call via pi-ai |
 | Judge | `src/fusion/judge.ts` | 2-step: analysis tool-call, then synthesis |
-| Provider bridge | `src/providers/pi-ai-bridge.ts` | `getModel` + `complete`, injects `apiKey` per call |
+| Provider bridge | `src/providers/pi-ai-bridge.ts` | `getModel` + `complete`, injects `apiKey` per call; `listProviders`/`listModels` merge pi-ai's catalog with `custom-providers.ts` |
+| Custom providers | `src/providers/custom-providers.ts` | `rapid-mlx` (keyless) + `ollama-cloud` (keyed); OpenAI-compatible; `discoverModels()` fetches live `/v1/models` |
 | Config store | `src/config/store.ts` | Read/write `config.json` + `secrets.enc` |
 | Crypto | `src/config/crypto.ts` | AES-256-GCM, machine-bound `master.key` |
 | DB | `src/store/db.ts` | better-sqlite3, WAL mode, migrations |
@@ -136,26 +137,42 @@ Both judge steps use the **same** provider/model combo.
 - **Pin `@earendil-works/pi-ai` exactly** — it's pre-1.0; `save-exact`. Do NOT use the deprecated `@mariozechner/pi-ai`.
 
 <!-- SPECKIT START -->
-Active feature: **008-async-fusion-results** (Async Fusion Results via Deferred Retrieval).
-Stage: implemented (T001–T028 complete, 167 tests green); T029 (E1 end-to-end against a real non-Tasks client) deferred as manual validation.
+Active feature: **009-playground-ui** (Playground UI + Settings Consolidation).
+Stage: implemented (T001–T013 complete, 176 tests green); quickstart E1 (manual parity check vs MCP client) deferred as manual validation.
 
-Working documents (read in order before implementing):
-- Current plan: specs/008-async-fusion-results/plan.md (tech context, constitution gate ✅ no violations, project structure)
-- Spec: specs/008-async-fusion-results/spec.md (3 user stories US1–US3, FR-001..015, SC-001..007)
-- Design depth: specs/008-async-fusion-results/research.md (R-001..R-009; R-001 VERIFIED per-call),
-  data-model.md (fusion_jobs table + status state machine; reference_id = activity_id; live progress ephemeral),
-  contracts/resume-from.md (fusion tool _resume_from wire protocol + mode-aware kickoff/retrieval shapes),
-  quickstart.md (T1–T14 + E1 — E1 re-scopes spec 005's never-run test to the _resume_from path)
-- Checklist: specs/008-async-fusion-results/checklists/requirements.md (all pass)
+Working documents (read in order before extending):
+- Tasks: specs/009-playground-ui/tasks.md (T001–T013 all [x], organized by user story)
+- Plan: specs/009-playground-ui/plan.md (tech context, constitution gate ✅ all 7 principles pass, project structure)
+- Spec: specs/009-playground-ui/spec.md (3 user stories US1–US3, FR-001..014, SC-001..006)
+- Design depth: specs/009-playground-ui/research.md (R-001..R-007 — execution path, progress UX, source:ui
+    activation, settings nav, persona picker, error UX, scope cuts),
+  data-model.md (NO new tables — Playground fusion = runFusion; persona_source:"active" is the UI signal; SC-003),
+  contracts/playground-api.md (POST /api/fusion request/response + SPA route map),
+  quickstart.md (T1–T8 automated+manual, E1 parity check vs MCP path)
 
-Key decisions: deferred-result protocol for non-Tasks clients (codex/ZCode) — feature 005's Tasks path
-provably cannot help them (codex hardcodes task:None, and the SDK's `handleAutomaticTaskPolling` blocks
-non-Tasks calls before the handler can return deferred — the root cause 008 fixes). Resolution: a documented
-SDK handler override (`src/fusion/resume-dispatch.ts`) replaces the CallToolRequest handler post-registration,
-routes non-Tasks fusion calls to kickoff/retrieval, and delegates Tasks clients + other tools unchanged
-(FR-013 preserved by delegation). `_resume_from` on the fusion tool; kickoff returns ~1s, retrieval
-bounded-long-polls (45s parallel — sized so a ~90s fusion returns in ≤3 round-trips, SC-002) / ETA-guided
-(sequential). Durable (SQLite `fusion_jobs`) for BOTH modes, live progress ephemeral. reference_id =
-activity_id (collapse the three-way map). Startup sweep → interrupted; stalled circuit → error/stalled;
-write-late guard extends expires_at. 005's Tasks path preserved as a sibling. R-001 gate passed (per-call).
+Shipped: **Playground** tab (new first/default) — Google-AI-Studio-style MCP-client UI running fusions directly
+from the browser via `POST /api/fusion` → `runFusion({ source:"ui" })`. Activates feature 006's dormant
+persona-policy exemption (SC-003 verified by `tests/playground-api.test.ts`(e)). A Playground fusion is
+byte-identical in its durable record to an MCP fusion (SC-002). The four config tabs (Candidates/Judge/
+Personas/API Keys) consolidated into one **Settings** tab with a left sidebar; old URLs redirect. Errors stays
+top-level. Nav: Playground · Dashboard · Generations · Settings · Errors. No new persistence, no new runtime
+dependencies (SC-006). `FusionBreakdown.tsx` extracted from `Generations.tsx` (single source of truth).
+
+Key decisions: add a **Playground** tab as the new first/default tab — a Google-AI-Studio-style MCP-client
+UI letting a user run a fusion directly from the browser (prompt + optional context + optional persona
+override → Run → live progress → synthesized answer + candidate/judge breakdown). The Playground calls
+`runFusion()` **directly** from a new `POST /api/fusion` Express route with `FusionInput.source = "ui"`
+(R-001) — NOT via the MCP stdio tool, the 005 Tasks path, or the 008 `_resume_from` durable path.
+`source:"ui"` activates feature 006's **dormant** persona-policy exemption (spec 006 tasks.md T014 flagged
+"no UI callsite exists today" — this is it): even under `strict`, a user-selected override runs and the
+activity row records `persona_source = "active"` (SC-003). A Playground fusion is byte-identical in its
+durable record to an MCP fusion — same `activities` + N+2 `sub_calls` rows, appears in
+Dashboard/Generations/Errors/Stats with zero special-casing (SC-002). **No new persistence, no new runtime
+dependency** (YAGNI — reuses the hand-rolled `GenerationText` + textarea + the existing `/api/runtime`
+poll pattern from the Dashboard's `ServerStatus` widget; R-002/R-005). Progress is short-poll
+`/api/runtime` @ ~2s (no SSE/WebSocket). In the same pass: **consolidate Candidates/Judge/Personas/API
+Keys into one Settings tab** with a left sidebar; the four existing page components render unchanged
+inside the shell (surgical — only the nav + a thin `Settings.tsx` shell change). Errors stays top-level
+(R-004). Nav: Playground · Dashboard · Generations · Settings · Errors. Constitution gate PASS — the
+Playground is a *client* of `runFusion`, not a modification of it (Principle I preserved).
 <!-- SPECKIT END -->

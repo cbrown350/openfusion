@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-28
+
+### Added (custom OpenAI-compatible providers)
+- **Two new providers** (`src/providers/custom-providers.ts`) — **`rapid-mlx`** (Apple-Silicon local inference via the rapid-MLX OpenAI-compatible server, `http://localhost:8000/v1`) and **`ollama-cloud`** (Ollama's hosted endpoint, `https://ollama.com/v1`). Both are registered with pi-ai's `openai-completions` adapter; `rapid-mlx` is **keyless** (a module-private `"no-key"` sentinel is passed to pi-ai, never stored in `secrets.enc` or logged), while `ollama-cloud` takes a real API key and is gated like any cloud provider.
+- **Dynamic model discovery** — `GET /api/providers/:provider/models` and `GET /api/providers/:provider/discover` fetch the live model list from a provider's `/v1/models` (10s timeout via `AbortSignal.timeout`), with defensive parsing tolerant of `data:null`, missing `data`, and non-object/non-string entries. Discoverable providers (the two above) are auto-discovered; others still read from pi-ai's static catalog. `listProviders()` now returns `{ id, name, discoverable }` and `listModels(provider)` merges discovered models with the static catalog.
+- **Keyless gate exemption** — `isConfigured()` (`src/config/completeness.ts`) now exempts keyless providers (currently `rapid-mlx`) from the "key for every referenced provider" requirement. The candidate/judge counts (≥2 / ≥1) are unchanged; only the key requirement is relaxed for providers that need none. `ollama-cloud` is still fully gated.
+- **UI for keyless + discovery** — the Candidates/Judge model pickers show discovered models and mark keyless providers; `GET /api/secrets` now also returns a `keyless: string[]` so the API Keys page knows which providers expect no key.
+
+### Added (feature 009 — Playground UI)
+- **Playground tab** — a new first/default dashboard tab (`/` now renders the Playground, ahead of Dashboard, Generations, Settings, Errors). A Google-AI-Studio-style MCP-client UI letting a user run a fusion directly from the browser — type a prompt (+ optional context + optional persona override), hit Run, watch live fan-out → analysis → synthesis progress, then read the synthesized answer plus the per-candidate and judge breakdown inline. Zero MCP client setup. The run is logged identically to an MCP fusion and shows up in Generations like any other.
+- **`POST /api/fusion`** (`src/server/api/fusion.ts`) — the new REST endpoint the Playground calls. It runs `runFusion()` **directly** in-process (not via the MCP stdio tool, the 005 Tasks path, or the 008 `_resume_from` path) with `FusionInput.source = "ui"`. Because `runFusion` is the single gate/fan-out/judge/logging site, a Playground fusion is byte-identical in its durable record to an MCP fusion. Never accepts or echoes key material (Constitution IV). Holds the request until the fusion completes; the browser polls `GET /api/runtime` in parallel for live progress.
+- **`source:"ui"` callsite activated** — the Playground is the first UI surface that *launches* a fusion rather than only reading past ones. This activates feature 006's dormant persona-policy exemption (spec 006 tasks.md T014 flagged "no UI callsite exists today" — this is it): even under `personaPolicy:"strict"`, a user-selected persona override runs and the activity row records `persona_source = "active"`. Verified by a regression test asserting the audit field under strict + override.
+- **Upfront unconfigured UX** — when the config doesn't yet satisfy the structural gate (<2 enabled candidates or no enabled judge), the Playground disables Run with an amber banner naming what's missing + a deep-link into Settings → Candidates. A run-time `needsConfig` response renders as actionable amber, not a red runtime error.
+
+### Changed (feature 009)
+- **Settings consolidation** — the four top-level config tabs (Candidates, Judge, Personas, API Keys) collapse into one **Settings** tab with a left sidebar of sub-sections. The existing page components render unchanged inside the shell (`ui/src/pages/Settings.tsx`); their `config`/`onChanged` props handshake with `App.tsx` is preserved. Old URLs (`/candidates`, `/judge`, `/personas`, `/keys`) redirect to their `/settings/*` homes so bookmarks don't break. Errors stays top-level (it's operations, not configuration). The nav shrinks from 7 tabs to 5 (Playground · Dashboard · Generations · Settings · Errors).
+- **Fusion breakdown extracted** — `CandidatesView`, `JudgeView`, `SubCallStats`, and the `AnalysisShape` type moved from local helpers in `Generations.tsx` to a shared `ui/src/components/FusionBreakdown.tsx`, so Generations and the Playground render the candidate/judge breakdown identically from a single source. No behavior change to Generations.
+
 ## [0.3.0] - 2026-06-19
 
 ### Added
@@ -170,7 +188,8 @@ The first public release. A local MCP server that brings OpenRouter's [Fusion](h
 - pnpm, TypeScript (ES2022, NodeNext, ESM), no bundler; `tsc` → `dist/`, Vite → `ui-dist/`.
 - stdout reserved for MCP JSON-RPC; all logs to stderr.
 
-[Unreleased]: https://github.com/hashangit/openfusion/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/hashangit/openfusion/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/hashangit/openfusion/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/hashangit/openfusion/releases/tag/v0.3.0
 [0.2.1]: https://github.com/hashangit/openfusion/releases/tag/v0.2.1
 [0.2.0]: https://github.com/hashangit/openfusion/releases/tag/v0.2.0
