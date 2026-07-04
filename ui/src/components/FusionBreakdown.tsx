@@ -1,6 +1,6 @@
-// Shared rendering of a fusion's per-candidate + judge breakdown.
-// Extracted from Generations.tsx (feature 009) so the Playground renders the breakdown identically
-// to the Generations detail view — single source of truth. No behavior change to Generations.
+// Shared rendering of a fusion's per-candidate + judge breakdown. Used by the Playground
+// (history rail loads a past run; breakdown shows inline). Single source of truth for the
+// candidate/judge views across the UI.
 import { useEffect, useState } from "react";
 import type { SubCall } from "../api";
 import { GenerationText } from "./GenerationText";

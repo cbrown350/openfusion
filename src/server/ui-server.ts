@@ -28,7 +28,10 @@ export interface UiServerOptions {
 
 export async function startUiServer(options: UiServerOptions = {}): Promise<{ app: Express; port: number }> {
   const app = express();
-  app.use(express.json({ limit: "1mb" }));
+  // 25mb: the Playground accepts file attachments whose text is injected into the fusion
+  // `context`. The UI enforces sane usage via a token-cost warning; this cap only prevents
+  // a truly absurd upload from OOMing the process. Other /api routes send small config blobs.
+  app.use(express.json({ limit: "25mb" }));
 
   // Uniform error envelope: { error: CODE, detail, issues? }
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

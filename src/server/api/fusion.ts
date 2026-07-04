@@ -4,7 +4,7 @@
 // past ones. It calls runFusion DIRECTLY with source:"ui" — NOT via the MCP stdio tool, the
 // 005 Tasks path, or the 008 _resume_from durable path (research.md R-001). Because runFusion
 // is the single gate/fan-out/judge/logging site, a Playground fusion is byte-identical in its
-// durable record to an MCP fusion (SC-002) — it appears in Dashboard/Generations/Errors/Stats
+// durable record to an MCP fusion (SC-002) — it appears in Dashboard/Errors/Stats
 // with zero special-casing.
 //
 // source:"ui" is load-bearing (FR-004): it activates feature 006's dormant persona-policy

@@ -155,8 +155,9 @@ from the browser via `POST /api/fusion` → `runFusion({ source:"ui" })`. Activa
 persona-policy exemption (SC-003 verified by `tests/playground-api.test.ts`(e)). A Playground fusion is
 byte-identical in its durable record to an MCP fusion (SC-002). The four config tabs (Candidates/Judge/
 Personas/API Keys) consolidated into one **Settings** tab with a left sidebar; old URLs redirect. Errors stays
-top-level. Nav: Playground · Dashboard · Generations · Settings · Errors. No new persistence, no new runtime
-dependencies (SC-006). `FusionBreakdown.tsx` extracted from `Generations.tsx` (single source of truth).
+top-level. Nav: Playground · Dashboard · Settings · Errors (the Generations tab was folded into the
+Playground's history rail + breakdown post-spec). No new persistence, no new runtime
+dependencies (SC-006). `FusionBreakdown.tsx` is the shared breakdown component (single source of truth).
 
 Key decisions: add a **Playground** tab as the new first/default tab — a Google-AI-Studio-style MCP-client
 UI letting a user run a fusion directly from the browser (prompt + optional context + optional persona
@@ -167,12 +168,13 @@ override → Run → live progress → synthesized answer + candidate/judge brea
 "no UI callsite exists today" — this is it): even under `strict`, a user-selected override runs and the
 activity row records `persona_source = "active"` (SC-003). A Playground fusion is byte-identical in its
 durable record to an MCP fusion — same `activities` + N+2 `sub_calls` rows, appears in
-Dashboard/Generations/Errors/Stats with zero special-casing (SC-002). **No new persistence, no new runtime
-dependency** (YAGNI — reuses the hand-rolled `GenerationText` + textarea + the existing `/api/runtime`
-poll pattern from the Dashboard's `ServerStatus` widget; R-002/R-005). Progress is short-poll
+Dashboard/Errors/Stats with zero special-casing (SC-002). **No new persistence, no new runtime
+dependency** (YAGNI — reuses `GenerationText` (react-markdown + remark-gfm) + the shared `FusionProgress`/
+`PhaseBar` (extracted from the Dashboard's `ServerStatus` widget) + the existing `/api/runtime`
+poll pattern; R-002/R-005). Progress is short-poll
 `/api/runtime` @ ~2s (no SSE/WebSocket). In the same pass: **consolidate Candidates/Judge/Personas/API
 Keys into one Settings tab** with a left sidebar; the four existing page components render unchanged
 inside the shell (surgical — only the nav + a thin `Settings.tsx` shell change). Errors stays top-level
-(R-004). Nav: Playground · Dashboard · Generations · Settings · Errors. Constitution gate PASS — the
+(R-004). Nav: Playground · Dashboard · Settings · Errors. Constitution gate PASS — the
 Playground is a *client* of `runFusion`, not a modification of it (Principle I preserved).
 <!-- SPECKIT END -->

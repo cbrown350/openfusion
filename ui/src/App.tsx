@@ -4,7 +4,6 @@ import { api, type AppConfig } from "./api";
 import { PlaygroundPage } from "./pages/Playground";
 import { SettingsPage } from "./pages/Settings";
 import { DashboardPage } from "./pages/Dashboard";
-import { GenerationsPage } from "./pages/Generations";
 import { ErrorsPage } from "./pages/Errors";
 
 export default function App() {
@@ -25,7 +24,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      <header className="glass mx-auto mt-6 flex max-w-5xl items-center justify-between px-6 py-4">
+      <header className="glass mx-auto mt-6 flex max-w-[var(--shell-max)] items-center justify-between px-6 py-4">
         <div className="flex items-center gap-3">
           <img src="/OpenFusion-logo.png" alt="OpenFusion" className="h-10 w-10 rounded-lg" />
           <div>
@@ -41,7 +40,6 @@ export default function App() {
           {[
             ["/playground", "Playground"],
             ["/dashboard", "Dashboard"],
-            ["/generations", "Generations"],
             ["/settings", "Settings"],
             ["/errors", "Errors"],
           ].map(([to, label]) => (
@@ -81,13 +79,13 @@ export default function App() {
       </header>
 
       {error && (
-        <div className="mx-auto mt-4 max-w-5xl rounded-md bg-red-500/20 px-4 py-2 text-sm text-red-200">
+        <div className="mx-auto mt-4 max-w-[var(--shell-max)] rounded-md bg-red-500/20 px-4 py-2 text-sm text-red-200">
           {error}
         </div>
       )}
 
       {!config?.configured && (
-        <div className="mx-auto mt-4 max-w-5xl rounded-md bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+        <div className="mx-auto mt-4 max-w-[var(--shell-max)] rounded-md bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
           OpenFusion isn't configured yet. Add ≥2 candidates, a judge, and an API key for each referenced provider to enable the{" "}
           <code className="rounded bg-black/30 px-1">fusion</code> tool.{" "}
           <Link to="/settings/candidates" className="underline">
@@ -96,18 +94,19 @@ export default function App() {
         </div>
       )}
 
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className="mx-auto max-w-[var(--shell-max)] px-4 py-6">
         <Routes>
           <Route path="/" element={<PlaygroundPage />} />
           <Route path="/playground" element={<PlaygroundPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/generations" element={<GenerationsPage />} />
           <Route path="/errors" element={<ErrorsPage />} />
           {/* Settings shell (feature 009): the four config pages consolidated under one tab. */}
           <Route path="/settings" element={<Navigate to="/settings/candidates" replace />} />
           <Route path="/settings/:section" element={<SettingsPage config={config} onChanged={refresh} />} />
           {/* Back-compat redirects: old top-level config paths → their new /settings/* homes. */}
           <Route path="/candidates" element={<Navigate to="/settings/candidates" replace />} />
+          {/* Generations was folded into the Playground (history rail + breakdown); redirect bookmarks. */}
+          <Route path="/generations" element={<Navigate to="/playground" replace />} />
           <Route path="/judge" element={<Navigate to="/settings/judge" replace />} />
           <Route path="/personas" element={<Navigate to="/settings/personas" replace />} />
           <Route path="/keys" element={<Navigate to="/settings/keys" replace />} />

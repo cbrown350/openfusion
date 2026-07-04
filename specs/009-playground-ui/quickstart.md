@@ -57,7 +57,7 @@ In dev you can also run the UI's Vite dev server separately (`pnpm --filter ./ui
 **Setup**: `pnpm dev`, open `http://localhost:9077`.
 
 **Expected**:
-- The header nav reads (left→right): **Playground · Dashboard · Generations · Settings · Errors**.
+- The header nav reads (left→right): **Playground · Dashboard · Settings · Errors** (Generations was folded into the Playground's history rail + inline breakdown in the 0091 redesign; `/generations` redirects to `/playground`).
 - **Playground** is highlighted (active) on `/` — FR-001.
 - Visiting `/playground` directly also works.
 
@@ -66,20 +66,20 @@ In dev you can also run the UI's Vite dev server separately (`pnpm --filter ./ui
 **Setup**: configured OpenFusion (prerequisites).
 
 **Steps**:
-1. On the Playground, type a prompt, optionally add context + pick a persona.
-2. Click **Run**.
+1. On the Playground, type a prompt into the chat-style composer; optionally attach text/PDF files (their text becomes `context`) and pick a persona.
+2. Click **Run** (or ⌘/Ctrl+Enter).
 
 **Expected** (FR-002, FR-006, FR-007):
-- The Run button disables; a progress indicator appears within ~2s showing the phase (fan-out → analysis → synthesis) and candidate count, fed by `/api/runtime`.
-- On completion the synthesized answer renders (markdown, copy button).
-- A collapsible "Candidate responses & judge analysis" section is present; expanding it shows the per-candidate outputs (dropdown to pick which worker) and the judge's structured analysis + the synthesis stats — same rendering as Generations.
+- The Run button disables and swaps to a running state; a live-progress affordance appears within ~2s showing the phase (fan-out → analysis → synthesis) and candidate count, fed by `/api/runtime` (shared `FusionProgress`/`PhaseBar` component, also used by the Dashboard).
+- On completion the synthesized answer renders (markdown via `react-markdown`/`remark-gfm`, copy button).
+- A collapsible "Candidate responses & judge analysis" section is present; expanding it shows the per-candidate outputs and the judge's structured analysis + the synthesis stats — the same `FusionBreakdown` components that previously lived under Generations.
 
-## T7 — The Playground run shows up in Generations + Dashboard (manual)
+## T7 — The Playground run shows up in Dashboard (manual)
 
 **Immediately after T6**:
 
 **Expected**:
-- Open **Generations**: the most recent activity is the Playground run (same timestamp + prompt excerpt). Selecting it shows the same candidate/judge breakdown — SC-002 (durable record is identical).
+- The Playground's own **Session history** rail (left) lists the run; clicking it reloads its answer + breakdown into the result pane.
 - Open **Dashboard**: the KPIs + the recent-activity table include the run; its cost/tokens/latency rolled up like any MCP fusion.
 - (If any candidate failed and `status:"partial"`:) Open **Errors**: the run appears with the partial-survivor detail — proving no special-casing (FR-008).
 
@@ -103,7 +103,7 @@ The headline success criterion. Proves the Playground reuses `runFusion` rather 
 
 **Steps**:
 1. Run the **same prompt** twice — once from the Playground, once via an MCP client (`claude`/ZCode/codex with the `fusion` tool, or `openfusion` CLI).
-2. Open both runs in **Generations**, side by side.
+2. Open both runs from the **Playground's Session history rail** (left), or compare the two `activities` rows directly via `GET /api/activity/:id`.
 
 **Expected**: the two `activities` rows have the **same shape** — same columns populated, same `sub_calls` structure (N workers + judge_analysis + judge_synthesis), same `generated_text`/`analysis_json` capture. The only systematic difference is `persona_source`: the Playground run reads `"active"` (UI exemption, SC-003) while the MCP run reads whatever the policy dictated (`active`/`override`/`strict-enforced`).
 

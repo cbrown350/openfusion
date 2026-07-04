@@ -7,12 +7,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/hashangit/openfusion/releases"><img alt="Version" src="https://img.shields.io/badge/version-0.2.1-4cd0b0.svg" /></a>
+  <a href="https://github.com/hashangit/openfusion/releases"><img alt="Version" src="https://img.shields.io/badge/version-0.3.1-4cd0b0.svg" /></a>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
   <a href="https://nodejs.org"><img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A522-3498db.svg" /></a>
   <a href="https://www.typescriptlang.org/"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.7-3178c6.svg" /></a>
   <a href="https://modelcontextprotocol.io/"><img alt="MCP" src="https://img.shields.io/badge/MCP-server-1a2a3a.svg" /></a>
-  <img alt="Tests" src="https://img.shields.io/badge/tests-38%20passing-success.svg" />
+  <img alt="Tests" src="https://img.shields.io/badge/tests-216%20passing-success.svg" />
   <a href="./CONTRIBUTING.md"><img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" /></a>
 </p>
 
@@ -167,7 +167,7 @@ TypeScript (ESM, ES2022, NodeNext) · [`@earendil-works/pi-ai`](https://www.npmj
 npx openfusion-setup       # interactive installer (writes client config + installs skill)
 npx openfusion-mcp         # run the MCP server + dashboard
 pnpm build                 # tsc -> dist/ ; vite -> ui-dist/ (from source)
-pnpm test                  # 50 tests, deterministic (pi-ai faux providers — no real API calls)
+pnpm test                  # 216 tests, deterministic (pi-ai faux providers — no real API calls)
 node dist/index.js         # MCP server (stdio) + dashboard (from source)
 node dist/ui-only.js       # standalone always-on dashboard
 ```
@@ -180,7 +180,7 @@ git pull && pnpm install && pnpm build   # from source; or just re-run npx for t
 
 Then **restart the server** so it loads the new code — a running process won't pick up changes. Config schema upgrades are automatic on load (a one-time notice prints to stderr, e.g. `config upgraded from v1 → v2`). You won't lose your candidates/judge/keys.
 
-> **Client tool-call timeouts:** a fusion with several candidates + a judge can take ~30–90s (sometimes more). Some MCP clients enforce a tight tool-call ceiling (e.g. 60s). If a `fusion` call appears to fail from the client side, the server likely **completed and logged it anyway** — check the **Generations** or **Errors** tab in the dashboard (`http://localhost:9077`) for the result.
+> **Client tool-call timeouts:** a fusion with several candidates + a judge can take ~30–90s (sometimes more). Some MCP clients enforce a tight tool-call ceiling (e.g. 60s). If a `fusion` call appears to fail from the client side, the server likely **completed and logged it anyway** — check the **Playground** (its history rail loads any past run) or the **Errors** tab in the dashboard (`http://localhost:9077`) for the result.
 
 ## Project layout
 

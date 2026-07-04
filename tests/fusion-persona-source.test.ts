@@ -44,7 +44,7 @@ describe("T037 — UI exemption (FR-010, INV-4)", () => {
 });
 
 describe("T041 (E2) — legacy persona_source rendering (UI chip logic)", () => {
-  // The chip-suffix logic lives in Generations.tsx; here we assert the pure rule:
+  // The chip-suffix logic lives in Errors.tsx; here we assert the pure rule:
   // active/NULL → no suffix; override/strict-enforced/invalid-fallback → suffix.
   function chipSuffix(persona_source: string | null | undefined): string {
     if (persona_source === "override") return " (client override)";

@@ -76,10 +76,14 @@ function configuredConfig(candidates: { id: string; model?: string }[]): RawConf
   };
 }
 
-/** Boot the fusion router on a real port + issue a POST, returning the Response. */
+/**
+ * Boot the fusion router on a real port + issue a POST, returning the Response.
+ * Mirrors src/server/ui-server.ts's parser config — including the raised body limit,
+ * which the Playground relies on for file-attachment contexts (default 100kb would reject them).
+ */
 async function postFusion(body: unknown): Promise<Response> {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: "25mb" }));
   app.use("/api/fusion", fusionRouter(db));
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve) => server.once("listening", resolve));
@@ -222,6 +226,33 @@ describe("POST /api/fusion (feature 009 — Playground API)", () => {
     // The activity row records persona_source = "active" (NOT "strict-enforced") — proves the UI exemption fired.
     const act = getActivity(db, body.activityId)!;
     expect(act.persona_source).toBe("active");
+
+    wreg.unregister();
+    jreg.unregister();
+  });
+
+  it("(f) a >1MB context body is accepted (raised json limit for file attachments) + the fusion runs", async () => {
+    saveConfig(configuredConfig([{ id: "c1" }, { id: "c2" }]));
+    const wreg = registerFauxProvider({ provider: PROVIDER, api: "faux-w", models: [{ id: "w1" }] });
+    const jreg = registerFauxProvider({ provider: JUDGE_PROVIDER, api: "faux-j", models: [{ id: "j1" }] });
+    wreg.setResponses([fauxAssistantMessage("a"), fauxAssistantMessage("b")]);
+    jreg.setResponses([
+      fauxAssistantMessage([fauxToolCall("record_analysis", {
+        consensus: ["x"], contradictions: [], partialCoverage: [], uniqueInsights: [], blindSpots: [],
+      })]),
+      fauxAssistantMessage("consolidated"),
+    ]);
+
+    // ~2MB of context — would be rejected as 413 by the pre-attachment-era 1mb cap.
+    const bigContext = "x".repeat(2 * 1024 * 1024);
+    const res = await postFusion({ prompt: "summarize the attachment", context: bigContext });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+
+    // The activity row records has_context — proving the large context flowed through end-to-end.
+    const act = getActivity(db, body.activityId)!;
+    expect(act.has_context).toBe(1);
 
     wreg.unregister();
     jreg.unregister();

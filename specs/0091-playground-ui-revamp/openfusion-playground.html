@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OpenFusion · Playground</title>
+
+<!--
+  =====================================================================
+  OpenFusion · Playground redesign — DROP-IN REFERENCE
+  ---------------------------------------------------------------------
+  GOAL: this is the EXISTING OpenFusion app with ONLY the Playground
+  page body swapped. A coding agent should:
+    1. The <header> below is ui/src/App.tsx's header, byte-for-byte
+       (real <img src="/OpenFusion-logo.png">, gradient title, centered
+       nav with the real labels + active styles, Donate + config pill).
+       Do NOT restyle the logo / nav / pills — only the width changes (see 3).
+    2. REUSE the existing class system, do not reinvent it:
+         .glass  .glass-soft  .btn  .btn-primary  .btn-icon  .field  .toggle
+       (defined verbatim from ui/src/index.css in <style> below).
+       Same label pattern ("text-xs uppercase tracking-wide text-white/40"),
+       same phase-chip pattern ("rounded-full bg-[#4cd0b0]/20 text-[#4cd0b0]"),
+       same accent (#4cd0b0), same gradient primary button.
+    3. The ONLY shell change: for the Playground route the SHARED shell
+       width (header + main) widens from max-w-5xl → max-w-7xl so the
+       title bar ALIGNs with the studio. (A narrow 5xl header floating
+       over a 7xl studio is exactly what made the v1 prototype look like
+       a different app.) The header INTERNALS are unchanged — only the
+       max-width class moves. Cleanest impl: a --shell-max CSS var on the
+       route root, or a conditional className in App.tsx keyed on
+       location.pathname.startsWith('/playground'). Every other page
+       stays max-w-5xl. If you'd rather touch nothing in App.tsx at all,
+       keep max-w-5xl here too — the studio still works, just tighter.
+    4. Reuse existing components, don't rebuild them:
+         <GenerationText>  for the synthesized answer (+ its Copy btn-icon)
+         <CandidatesView> + <JudgeView>  for the breakdown
+       The breakdown markup below is a faithful mock of those.
+    5. Data path is unchanged: POST /api/fusion → poll /api/runtime →
+       GET /api/activity/:id. The run here is SIMULATED for the static
+       preview; wire the buttons to api.runFusion()/getStatus() in React.
+  =====================================================================
+-->
+
+<!-- Tailwind utilities (the real app is Tailwind v4; this CDN just renders
+     the same utility classes in the static preview). Agent ignores the CDN. -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+  /* ---- Copied VERBATIM from ui/src/index.css (the app's real tokens) ---- */
+  :root { color-scheme: dark; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    /* OpenFusion brand palette: teal #4cd0b0 + blue #3498db on dark navy #1a2a3a */
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(76, 208, 176, 0.18), transparent 60%),
+      radial-gradient(1000px 500px at 110% 10%, rgba(52, 152, 219, 0.16), transparent 60%),
+      #1a2a3a;
+    color: #e8f1f6;
+  }
+  .glass {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 1rem;
+  }
+  .glass-soft {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem;
+  }
+  button.btn {
+    border-radius: 0.5rem; border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.08); padding: 0.4rem 0.9rem;
+    font-size: 0.875rem; transition: all 0.15s; cursor: pointer; color: inherit;
+  }
+  button.btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.15); }
+  button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  /* Self-contained: the real app uses class="btn-primary" alone (no .btn),
+     so this rule carries its own padding/size/radius/cursor — a proper button. */
+  button.btn-primary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+    background: linear-gradient(135deg, #4cd0b0, #3498db);
+    border: 1px solid transparent; border-radius: 0.55rem;
+    padding: 0.55rem 1.15rem; min-height: 2.4rem;
+    font-size: 0.875rem; font-weight: 600; line-height: 1; color: #0e1a24;
+    cursor: pointer; white-space: nowrap;
+    transition: filter 0.15s, opacity 0.15s, box-shadow 0.15s;
+    box-shadow: 0 6px 20px -8px rgba(76, 208, 176, 0.6);
+  }
+  button.btn-primary:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 8px 24px -8px rgba(52, 152, 219, 0.65); }
+  button.btn-primary:active:not(:disabled) { filter: brightness(0.95); }
+  button.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+  button.btn-primary.is-running { background: linear-gradient(135deg, #3bb39a, #2c80b8); cursor: progress; }
+  button.btn-primary .run-ico { width: 14px; height: 14px; flex: none; }
+  button.btn-primary .run-ico.hidden { display: none; }
+  .run-ico.spin { animation: pg-spin 0.7s linear infinite; }
+  @keyframes pg-spin { to { transform: rotate(360deg); } }
+  input.field, select.field, textarea.field {
+    background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.5rem; padding: 0.4rem 0.6rem; font-size: 0.875rem;
+    color: inherit; outline: none; width: 100%;
+  }
+  input.field:focus, select.field:focus, textarea.field:focus { border-color: rgba(76, 208, 176, 0.6); }
+  button.btn-icon {
+    border-radius: 0.4rem; border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06); padding: 0.25rem 0.45rem;
+    font-size: 0.8rem; line-height: 1; cursor: pointer; transition: all 0.15s;
+    color: rgba(255, 255, 255, 0.7);
+  }
+  button.btn-icon:hover { background: rgba(255, 255, 255, 0.14); color: #4cd0b0; }
+  button.btn-icon.copied { color: #4cd0b0; border-color: rgba(76, 208, 176, 0.5); }
+  .toggle { position: relative; display: inline-block; width: 2.5rem; height: 1.4rem;
+    border-radius: 9999px; background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.15); cursor: pointer;
+    transition: background 0.15s, border-color 0.15s; flex-shrink: 0; }
+  .toggle::after { content: ""; position: absolute; top: 50%; left: 0.15rem;
+    transform: translateY(-50%); width: 1rem; height: 1rem; border-radius: 9999px;
+    background: #d7e3ea; transition: left 0.15s, background 0.15s; }
+  .toggle.on { background: linear-gradient(135deg, #4cd0b0, #3498db); border-color: transparent; }
+  .toggle.on::after { left: calc(100% - 1.15rem); background: #0e1a24; }
+
+  /* ---- Playground-only additions (page-local, no app tokens invented) ---- */
+  .generation p { margin: 0 0 0.55rem; line-height: 1.65; }
+  .generation h2 { color:#4cd0b0; font-weight:600; font-size:0.95rem; margin:0.4rem 0 0.35rem; }
+  .generation ul { margin: 0 0 0.55rem 1.1rem; list-disc; padding-inline-start: 0.4rem; }
+  .generation li { margin: 0.15rem 0; line-height: 1.6; }
+  .generation code { background: rgba(0,0,0,0.4); padding: 0.5px 4px; border-radius: 4px;
+    font-size: 0.8rem; color: #4cd0b0; font-family: ui-monospace, Menlo, monospace; }
+  .gen-scroll { max-height: 420px; overflow-y: auto; }
+  .gen-scroll::-webkit-scrollbar { width: 8px; }
+  .gen-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 8px; }
+
+  /* 3-pane grid: rail | composer | result. minmax(0,…) prevents the
+     candidate row + breakdown from overflowing the 1040–1240px band. */
+  .studio {
+    display: grid; gap: 1rem;
+    grid-template-columns: 1fr;            /* mobile: single column */
+  }
+  @media (min-width: 1040px) {
+    .studio { grid-template-columns: 248px minmax(0, 1fr) minmax(0, 1.32fr); }
+    .order-rail { order: 1; } .order-comp { order: 2; } .order-res { order: 3; }
+  }
+  .rail-item { display:flex; flex-direction:column; gap:2px; width:100%; text-align:left;
+    background: transparent; border: 1px solid transparent; border-radius: 0.5rem;
+    padding: 0.5rem 0.6rem; cursor: pointer; transition: all 0.15s; color: inherit; }
+  .rail-item:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
+  .rail-item.active { background: rgba(76,208,176,0.10); border-color: rgba(76,208,176,0.30); }
+
+  .dot { display:inline-block; width:9px; height:9px; border-radius:9999px; flex-shrink:0; }
+  .dot.resp { background:#4cd0b0; box-shadow:0 0 0 0 rgba(76,208,176,0.6); animation: pulse 1.1s infinite; }
+  .dot.ok   { background:#34d399; }
+  .dot.warn { background:#fbbf24; }
+  .dot.err  { background:#f87171; }
+  .dot.queued { background: rgba(255,255,255,0.22); }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(76,208,176,0.55); }
+    70%  { box-shadow: 0 0 0 6px rgba(76,208,176,0); }
+    100% { box-shadow: 0 0 0 0 rgba(76,208,176,0); }
+  }
+  .tab { cursor:pointer; border:1px solid transparent; }
+  .tab.active { background: rgba(76,208,176,0.16); color:#4cd0b0; border-color: rgba(76,208,176,0.30); }
+  .num { font-variant-numeric: tabular-nums; font-family: ui-monospace, Menlo, monospace; }
+  /* streaming cursor for the synthesized answer (synthesis is the engine's final phase) */
+  .pg-cursor { display:inline-block; width:.46ch; height:1.05em; vertical-align:-0.16em; background:#4cd0b0; margin-left:1px; border-radius:1px; animation: pg-blink 1s steps(2,start) infinite; }
+  @keyframes pg-blink { 50% { opacity:0; } }
+</style>
+</head>
+<body>
+<div class="min-h-screen">
+
+  <!-- ===================== HEADER (byte-faithful to App.tsx) ===================== -->
+  <header class="glass mx-auto mt-6 flex max-w-7xl items-center justify-between px-6 py-4">
+    <div class="flex items-center gap-3">
+      <!-- EXACT App.tsx markup. The logo ships in /public; this static
+           preview loads a copy from the project root. -->
+      <img src="OpenFusion-logo.png" alt="OpenFusion" class="h-10 w-10 rounded-lg" />
+      <div>
+        <h1 class="text-lg font-semibold leading-tight">
+          <span class="bg-gradient-to-r from-[#4cd0b0] to-[#3498db] bg-clip-text text-transparent">OpenFusion</span>
+        </h1>
+        <p class="text-xs text-white/60">Fusion panel MCP server</p>
+      </div>
+    </div>
+    <nav class="flex gap-1 text-sm">
+      <a class="rounded-md bg-[#4cd0b0]/20 px-3 py-1.5 text-[#4cd0b0]">Playground</a>
+      <a class="rounded-md px-3 py-1.5 text-white/70 transition hover:bg-white/10">Dashboard</a>
+      <a class="rounded-md px-3 py-1.5 text-white/70 transition hover:bg-white/10">Generations</a>
+      <a class="rounded-md px-3 py-1.5 text-white/70 transition hover:bg-white/10">Settings</a>
+      <a class="rounded-md px-3 py-1.5 text-white/70 transition hover:bg-white/10">Errors</a>
+    </nav>
+    <div class="flex items-center gap-3">
+      <a class="rounded-full bg-pink-500/20 px-3 py-1 text-xs font-medium text-pink-300 transition hover:bg-pink-500/30"
+         title="Support OpenFusion">♥ Donate</a>
+      <span class="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-medium text-emerald-300">● Configured</span>
+    </div>
+  </header>
+
+  <!-- ============== MAIN — Playground route shell (header + main both max-w-7xl) ==============
+       For the playground route the whole shell widens to max-w-7xl together (header +
+       main) so the title bar aligns with the studio. Header INTERNALS are unchanged.
+       Every other route stays max-w-5xl. See handoff note 3 above. -->
+  <main class="mx-auto max-w-7xl px-4 py-6">
+
+    <!-- Page header — matches Playground.tsx byte-for-byte (h2 + subtitle, nothing else). -->
+    <div class="mb-4">
+      <h2 class="text-lg font-semibold">Playground</h2>
+      <p class="-mt-2 text-sm text-white/60">
+        Run a fusion directly from the browser — no MCP client required. Same engine, same judging,
+        same activity log as a tool-driven fusion.
+      </p>
+    </div>
+
+    <!-- =========================== STUDIO 3-PANE =========================== -->
+    <div class="studio">
+
+      <!-- ----------------------- LEFT RAIL: Examples + History ----------------------- -->
+      <aside class="order-rail glass space-y-4 p-3">
+        <div>
+          <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-white/40">Example prompts</h3>
+          <div class="space-y-1" id="examples">
+            <!-- filled by JS from grounded, fusion-tuned starters -->
+          </div>
+        </div>
+
+        <div class="border-t border-white/10 pt-3">
+          <h3 class="mb-2 flex items-center justify-between text-xs font-medium uppercase tracking-wide text-white/40">
+            <span>Session history</span>
+            <span class="num normal-case text-white/30" id="histCount"></span>
+          </h3>
+          <div class="space-y-1" id="history">
+            <!-- filled by JS from grounded past runs -->
+          </div>
+        </div>
+      </aside>
+
+      <!-- ----------------------------- CENTER: Composer ----------------------------- -->
+      <section class="order-comp glass space-y-3 p-4">
+        <div>
+          <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-white/40">Prompt</label>
+          <textarea id="prompt" class="field min-h-[7rem] font-mono text-sm"
+            placeholder="Ask anything…">Compare the tradeoffs of SSR vs SSG for a content-heavy marketing site that updates hourly.</textarea>
+        </div>
+
+        <div>
+          <label class="mb-1 flex items-center justify-between text-xs font-medium uppercase tracking-wide text-white/40">
+            <span>Context <span class="normal-case text-white/30">(optional)</span></span>
+            <button id="ctxToggle" class="normal-case text-white/40 transition hover:text-[#4cd0b0]" style="font-weight:400">▾ hide</button>
+          </label>
+          <div id="ctxWrap">
+            <textarea id="context" class="field min-h-[3.5rem] font-mono text-sm"
+              placeholder="Background context, prior reasoning, or tool results to pass to the candidates…"></textarea>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="min-w-[14rem] flex-1">
+            <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-white/40">
+              Persona <span class="normal-case text-white/30">(optional override)</span>
+            </label>
+            <select id="persona" class="field text-sm">
+              <option value="generalist">Active: Generalist</option>
+              <option value="researcher">Researcher</option>
+              <option value="qa">QA / Code Reviewer</option>
+              <option value="architect">System Architect</option>
+              <option value="pm">PM / Strategist</option>
+            </select>
+            <p id="personaDesc" class="mt-1 text-xs text-white/45">Balanced reasoning across any domain.</p>
+          </div>
+          <button id="runBtn" class="btn-primary" disabled title="Type a prompt to run fusion">
+            <svg class="run-ico ico-bolt" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+            <svg class="run-ico ico-spin spin hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-opacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9" stroke-linecap="round"/></svg>
+            <span id="runLabel">Run fusion</span>
+          </button>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <p class="text-white/35">Tip: fusion works best on tradeoffs, blind-spot hunting, and deep research — not single-fact lookups.</p>
+          <p class="num text-white/40">~<span id="tokEst">0</span> tok <span class="mx-1 text-white/20">·</span> <kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-sans text-white/60">⌘↵</kbd> to run</p>
+        </div>
+      </section>
+
+      <!-- ----------------------------- RIGHT: Result ----------------------------- -->
+      <section class="order-res glass p-4">
+
+        <!-- Run metadata bar (hidden until a run lands) -->
+        <div id="metaBar" class="num mb-3 hidden flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-black/20 px-3 py-2 text-xs text-white/65">
+          <span><span class="text-white/40">cost</span> <span id="m-cost" class="text-white/90">—</span></span>
+          <span class="text-white/20">·</span>
+          <span><span class="text-white/40">tokens</span> <span id="m-tok" class="text-white/90">—</span></span>
+          <span class="text-white/20">·</span>
+          <span><span class="text-white/40">latency</span> <span id="m-lat" class="text-white/90">—</span></span>
+          <span class="text-white/20">·</span>
+          <span><span class="text-white/40">survivors</span> <span id="m-surv" class="text-[#4cd0b0]">—</span></span>
+          <span class="text-white/20">·</span>
+          <span><span class="text-white/40">persona</span> <span id="m-per" class="text-white/90">—</span></span>
+          <span class="text-white/20">·</span>
+          <span><span class="text-white/40">source</span> <span class="text-white/90">ui</span></span>
+        </div>
+
+        <!-- Live per-candidate progress (shown while running) -->
+        <div id="progress" class="hidden">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="dot resp"></span>
+              <span id="progLabel" class="text-sm font-medium text-white/80">Starting…</span>
+            </div>
+            <span id="progElapsed" class="num text-xs text-white/40">0s</span>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-white/60" id="phaseRow"></div>
+          <div class="mt-3 space-y-1.5" id="candLive"></div>
+        </div>
+
+        <!-- Empty state -->
+        <div id="empty" class="flex h-48 flex-col items-center justify-center text-center">
+          <div class="mb-2 flex h-10 w-10 items-center justify-center rounded-full"
+               style="background:rgba(76,208,176,0.10);border:1px solid rgba(76,208,176,0.25)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#4cd0b0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <p class="text-sm text-white/55">Run a fusion to see the synthesized answer,</p>
+          <p class="text-sm text-white/55">per-candidate breakdown, and judge analysis here.</p>
+        </div>
+
+        <!-- Result block -->
+        <div id="result" class="hidden">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-medium text-[#4cd0b0]">Synthesized answer</h3>
+            <div class="flex items-center gap-1.5">
+              <button id="copyBtn" class="btn-icon" title="Copy answer">⧉</button>
+              <button id="rerunBtn" class="btn text-xs">Re-run</button>
+            </div>
+          </div>
+          <div class="gen-scroll generation mt-2 pr-1" id="answer"></div>
+
+          <!-- Breakdown -->
+          <div class="mt-4 border-t border-white/10 pt-3">
+            <div class="mb-3 flex flex-wrap items-center gap-2 text-xs">
+              <span class="text-white/40 mr-1 uppercase tracking-wide">Judge analysis</span>
+              <button class="tab active rounded-full bg-white/5 px-2.5 py-1 text-white/70" data-bucket="consensus">Consensus</button>
+              <button class="tab rounded-full bg-white/5 px-2.5 py-1 text-white/70" data-bucket="contradictions">Contradictions</button>
+              <button class="tab rounded-full bg-white/5 px-2.5 py-1 text-white/70" data-bucket="uniqueInsights">Unique insights</button>
+              <button class="tab rounded-full bg-white/5 px-2.5 py-1 text-white/70" data-bucket="blindSpots">Blind spots</button>
+            </div>
+            <div id="bucket" class="rounded-md bg-black/20 p-3 text-sm leading-relaxed text-white/80"></div>
+
+            <!-- Candidates (reuses <CandidatesView> shape) -->
+            <h4 class="mb-2 mt-4 text-xs font-medium uppercase tracking-wide text-white/40">Candidates</h4>
+            <div id="candRows" class="space-y-1.5"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ---------- Grounded data shapes (mirror the real engine contract) ---------- */
+const PERSONAS = {
+  generalist: { name: "Generalist",      desc: "Balanced reasoning across any domain." },
+  researcher: { name: "Researcher",      desc: "Deep, cited, cross-source verification." },
+  qa:         { name: "QA / Code Reviewer", desc: "Stress-tests logic, edges, and correctness." },
+  architect:  { name: "System Architect",desc: "Components, boundaries, failure modes." },
+  pm:         { name: "PM / Strategist", desc: "Priorities, tradeoffs, stakeholder framing." },
+};
+
+const EXAMPLES = [
+  { p:"Compare the tradeoffs of SSR vs SSG for a content-heavy marketing site.", persona:"researcher" },
+  { p:"Design a token-bucket rate limiter. Find edge cases two models might miss.", persona:"architect" },
+  { p:"What are the biggest blind spots in assuming microservices will fix our scaling?", persona:"qa" },
+  { p:"Deep research: safest food-grade materials for a 120 °C 3D-printed mold.", persona:"researcher" },
+  { p:"Prioritize these roadmap items for a 2-person seed-stage team.", persona:"pm" },
+];
+
+/* 5 candidate models (provider/modelId shape), one deliberately times out. */
+const CANDIDATES = [
+  { id:"anthropic/claude-sonnet",  label:"claude-sonnet",   status:"ok"      },
+  { id:"openai/gpt-4o",            label:"gpt-4o",          status:"ok"      },
+  { id:"google/gemini-1.5-pro",    label:"gemini-1.5-pro",  status:"ok"      },
+  { id:"mistral/mistral-large",    label:"mistral-large",   status:"timeout" },
+  { id:"xai/grok",                 label:"grok",            status:"ok"      },
+];
+const CAND_METRICS = {
+  "claude-sonnet":  { tok:"1,204", cost:"$0.0036", lat:"2.1s" },
+  "gpt-4o":         { tok:"980",   cost:"$0.0029", lat:"1.8s" },
+  "gemini-1.5-pro": { tok:"1,310", cost:"$0.0019", lat:"2.4s" },
+  "mistral-large":  { tok:"—",     cost:"—",       lat:"30s"  },
+  "grok":           { tok:"737",   cost:"$0.0021", lat:"1.6s" },
+};
+
+const JUDGE = {
+  consensus: "All candidates agree SSR adds per-request runtime cost and that SSG wins on raw TTFB and edge cacheability. They converge that content updated only hourly leans SSG, with selective SSR for personalised or real-time fragments.",
+  contradictions: "Claude-sonnet flags SSR TTFB as a serious risk under load; gemini-1.5-pro downplays it where ISR/edge caching applies. GPT-4o treats ISR as SSG, while grok classifies it as a hybrid SSR variant — the SSG/SSR boundary itself is contested.",
+  uniqueInsights: "Grok notes incremental static regeneration blurs the SSG/SSR line and cuts rebuild cost. Gemini emphasises first-load JS budget interaction with hydration — overlooked by the others. Claude raises cache-invalidation races during hourly rebuilds.",
+  blindSpots: "None addressed cost-at-scale for SSR compute vs build minutes, nor the operational burden of a hybrid pipeline. Edge-case behavior under simultaneous deploy + traffic was untouched.",
+};
+
+/* Pre-rendered markdown answer for the default example (reuses <GenerationText> in React). */
+const ANSWER =
+`<h2>Short answer</h2>
+<p>For a <strong>content-heavy marketing site that updates hourly</strong>, lean on <code>SSG with incremental regeneration</code> (ISR) as the default, and reach for <code>SSR</code> only on the handful of routes that are personalised or truly real-time.</p>
+
+<h2>Why</h2>
+<ul>
+<li><strong>TTFB &amp; cost:</strong> SSG serves static HTML from the edge — lowest latency and cheapest. SSR pays compute on every request; at marketing-site traffic that compounds quickly.</li>
+<li><strong>Update cadence:</strong> Hourly updates are well inside ISR's sweet spot. You avoid full rebuilds and still publish within minutes.</li>
+<li><strong>Caveat — hydration:</strong> First-load JS budget still matters; a heavy client bundle can erase SSG's TTFB win on slow devices.</li>
+</ul>
+
+<h2>Risks the candidates surfaced</h2>
+<ul>
+<li>Cache-invalidation races during the hourly rebuild window.</li>
+<li>SSR TTFB under load if you scope it too broadly.</li>
+</ul>`;
+
+/* ----------------------------- DOM helpers ----------------------------- */
+const $ = (s) => document.querySelector(s);
+const el = (h) => { const d = document.createElement("div"); d.innerHTML = h.trim(); return d.firstChild; };
+
+/* ----------------------------- Rail render ----------------------------- */
+function renderExamples() {
+  $("#examples").innerHTML = EXAMPLES.map((e, i) => `
+    <button class="rail-item" data-ex="${i}">
+      <span class="text-sm text-white/85 line-clamp-2">${e.p}</span>
+      <span class="num text-[11px] text-[#4cd0b0]/80">${PERSONAS[e.persona].name}</span>
+    </button>`).join("");
+  $("#examples").querySelectorAll("[data-ex]").forEach(b =>
+    b.addEventListener("click", () => {
+      const e = EXAMPLES[b.dataset.ex]; $("#prompt").value = e.p;
+      $("#persona").value = e.persona; syncPersonaDesc();
+    }));
+}
+
+const HISTORY = [
+  { p:"Compare the tradeoffs of SSR vs SSG for a content-heavy marketing site…", persona:"researcher", lat:"8.4s", surv:"4/5" },
+  { p:"Design a token-bucket rate limiter. Find edge cases…", persona:"architect", lat:"11.2s", surv:"5/5" },
+  { p:"Blind spots in assuming microservices fix scaling.", persona:"qa", lat:"9.1s", surv:"3/5" },
+];
+function renderHistory(activeIdx) {
+  $("#histCount").textContent = HISTORY.length;
+  $("#history").innerHTML = HISTORY.map((h, i) => `
+    <button class="rail-item ${i===activeIdx?'active':''}" data-hi="${i}">
+      <span class="text-sm text-white/85 line-clamp-2">${h.p}</span>
+      <span class="num text-[11px] text-white/45">${PERSONAS[h.persona].name} · ${h.lat} · ${h.surv}</span>
+    </button>`).join("");
+  $("#history").querySelectorAll("[data-hi]").forEach(b =>
+    b.addEventListener("click", () => { renderHistory(+b.dataset.hi); loadResult(+b.dataset.hi); }));
+}
+
+/* ----------------------------- Persona ----------------------------- */
+function syncPersonaDesc() {
+  $("#personaDesc").textContent = PERSONAS[$("#persona").value].desc;
+}
+$("#persona").addEventListener("change", syncPersonaDesc);
+
+/* Context show/hide */
+$("#ctxToggle").addEventListener("click", () => {
+  const w = $("#ctxWrap"), t = $("#ctxToggle");
+  const hidden = w.style.display === "none";
+  w.style.display = hidden ? "" : "none";
+  t.textContent = hidden ? "▾ hide" : "▸ show";
+});
+
+/* ----------------------------- Breakdown tabs ----------------------------- */
+document.querySelectorAll(".tab").forEach(t =>
+  t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    t.classList.add("active");
+    $("#bucket").innerHTML = `<p>${JUDGE[t.dataset.bucket]}</p>`;
+  }));
+
+/* ----------------------------- Candidate rows ----------------------------- */
+function renderCandRows() {
+  $("#candRows").innerHTML = CANDIDATES.map(c => {
+    const m = CAND_METRICS[c.label];
+    const dot = c.status === "ok" ? "ok" : c.status === "timeout" ? "warn" : "err";
+    const statTxt = c.status === "ok" ? "ok" : c.status;
+    return `
+      <div class="glass-soft flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs">
+        <span class="dot ${dot}"></span>
+        <span class="font-medium text-white/90">${c.label}</span>
+        <span class="num text-white/35">${c.id}</span>
+        <span class="ml-auto num text-white/60">${statTxt} · ${m.tok} tok · ${m.cost} · ${m.lat}</span>
+      </div>`;
+  }).join("");
+}
+
+/* ----------------------------- Live progress ----------------------------- */
+function setPhaseRow(phase) {
+  const ph = [["fan-out","Fan-out"],["analysis","Analysis"],["synthesis","Synthesis"]];
+  $("#phaseRow").innerHTML = ph.map(([k,label]) =>
+    `<span class="rounded-full px-2.5 py-1 ${phase===k?'bg-[#4cd0b0]/20 text-[#4cd0b0]':'bg-white/5 text-white/40'}">${label}</span>`
+  ).join("") + `<span class="text-white/40">·</span><span id="candCount" class="text-white/60"></span>`;
+}
+function renderCandLive(done) {
+  $("#candLive").innerHTML = CANDIDATES.map((c, i) => {
+    const dot = i < done ? (c.status === "ok" ? "ok" : c.status === "timeout" ? "warn" : "err")
+                         : (i === done ? "resp" : "queued");
+    return `
+      <div class="flex items-center gap-2 text-xs text-white/70">
+        <span class="dot ${dot}"></span>
+        <span class="font-medium text-white/85">${c.label}</span>
+        <span class="num text-white/35">${c.id}</span>
+      </div>`;
+  }).join("");
+}
+
+/* ----------------------------- The run (simulated) ----------------------------- */
+let running = false, startTs = 0, tickId = null;
+function syncRunEnabled() {
+  if (running) return;
+  const b = $("#runBtn"), empty = !$("#prompt").value.trim();
+  b.disabled = empty;
+  b.title = empty ? "Type a prompt to run fusion" : "Run fusion  (⌘↵)";
+}
+function setRunning(on) {
+  running = on;
+  const b = $("#runBtn");
+  b.classList.toggle("is-running", on);
+  b.querySelector(".ico-bolt").classList.toggle("hidden", on);
+  b.querySelector(".ico-spin").classList.toggle("hidden", !on);
+  $("#runLabel").textContent = on ? "Running…" : "Run fusion";
+  b.disabled = on || !$("#prompt").value.trim();
+  b.title = on ? "Fusion running…" : "Run fusion  (⌘↵)";
+  $("#empty").classList.toggle("hidden", on || $("#result").dataset.shown === "1");
+  $("#progress").classList.toggle("hidden", !on);
+  if (on) { $("#result").classList.add("hidden"); $("#metaBar").classList.add("hidden"); }
+}
+
+function run() {
+  if (running || !$("#prompt").value.trim()) return;
+  setRunning(true);
+  startTs = Date.now();
+  let done = 0, phase = "fan-out";
+
+  $("#progLabel").textContent = "Running";
+  setPhaseRow("fan-out"); renderCandLive(0);
+  tickId = setInterval(() => {
+    $("#progElapsed").textContent = Math.round((Date.now() - startTs) / 1000) + "s";
+  }, 200);
+
+  // fan-out: light up candidate dots one by one
+  const fan = setInterval(() => {
+    done++;
+    const cc = $("#candCount"); if (cc) cc.textContent = `${done} of ${CANDIDATES.length} responding`;
+    renderCandLive(done);
+    if (done >= CANDIDATES.length) {
+      clearInterval(fan);
+      phase = "analysis"; setPhaseRow("analysis");
+      $("#progLabel").textContent = "Judging";
+      setTimeout(() => { phase = "synthesis"; setPhaseRow("synthesis");
+        $("#progLabel").textContent = "Synthesizing"; }, 1200);
+      setTimeout(finish, 2600);
+    }
+  }, 480);
+}
+
+function finish() {
+  clearInterval(tickId);
+  setRunning(false);
+  const surv = CANDIDATES.filter(c => c.status === "ok").length;
+  $("#m-cost").textContent = "$0.0142";
+  $("#m-tok").textContent = "4,231";
+  $("#m-lat").textContent = Math.round((Date.now() - startTs) / 100)/10 + "s";
+  $("#m-surv").textContent = `${surv}/${CANDIDATES.length}`;
+  $("#m-per").textContent = PERSONAS[$("#persona").value].name;
+  $("#metaBar").classList.remove("hidden");
+
+  // breakdown is ready immediately (it sits below the answer)
+  $("#bucket").innerHTML = `<p>${JUDGE.consensus}</p>`;
+  document.querySelectorAll(".tab").forEach((t,i) => t.classList.toggle("active", i===0));
+  renderCandRows();
+  $("#result").classList.remove("hidden");
+  $("#result").dataset.shown = "1";
+  $("#empty").classList.add("hidden");
+  // stream the synthesized answer block-by-block (mirrors the engine's final
+  // synthesis phase; in React swap this for the live /api/runtime token stream).
+  streamAnswer(ANSWER);
+}
+
+/* Stream the synthesized answer as blocks with a cursor at the frontier. */
+let streamId = null;
+function streamAnswer(html) {
+  clearInterval(streamId);
+  const blocks = html.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
+  const host = $("#answer");
+  host.innerHTML = '<span class="pg-cursor"></span>';
+  let i = 0;
+  streamId = setInterval(() => {
+    const cur = host.querySelector(".pg-cursor");
+    if (i >= blocks.length) { clearInterval(streamId); if (cur) cur.remove(); return; }
+    cur && cur.insertAdjacentHTML("beforebegin", blocks[i++] + "\n");
+    host.scrollTop = host.scrollHeight;
+  }, 95);
+}
+
+/* Reload a past run from history (simulated) */
+function loadResult(i) {
+  if (running) return;
+  const h = HISTORY[i];
+  $("#prompt").value = h.p; $("#persona").value = h.persona; syncPersonaDesc();
+  $("#m-cost").textContent = "$0.0121"; $("#m-tok").textContent = "3,890";
+  $("#m-lat").textContent = h.lat; $("#m-surv").textContent = h.surv;
+  $("#m-per").textContent = PERSONAS[h.persona].name;
+  $("#metaBar").classList.remove("hidden");
+  streamAnswer(ANSWER);
+  $("#bucket").innerHTML = `<p>${JUDGE.consensus}</p>`;
+  document.querySelectorAll(".tab").forEach((t,j) => t.classList.toggle("active", j===0));
+  renderCandRows();
+  $("#result").classList.remove("hidden");
+  $("#result").dataset.shown = "1";
+  $("#empty").classList.add("hidden");
+}
+
+$("#runBtn").addEventListener("click", run);
+$("#rerunBtn").addEventListener("click", run);
+
+/* Keyboard: ⌘/Ctrl + Enter runs the fusion (frontier-playground standard). */
+document.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); run(); }
+});
+
+/* Live token estimate (~chars/4) while typing — prompt + context are real fusion params. */
+const tokEstimate = () => {
+  const n = ($("#prompt").value + " " + $("#context").value).length;
+  $("#tokEst").textContent = Math.max(1, Math.round(n / 4)).toLocaleString();
+};
+$("#prompt").addEventListener("input", syncRunEnabled);
+["prompt", "context"].forEach(id => $("#" + id).addEventListener("input", tokEstimate));
+syncRunEnabled(); tokEstimate();
+
+/* Copy answer */
+$("#copyBtn").addEventListener("click", async () => {
+  const txt = $("#answer").innerText;
+  try { await navigator.clipboard.writeText(txt); } catch {}
+  const b = $("#copyBtn"); b.classList.add("copied"); b.textContent = "✓";
+  setTimeout(() => { b.classList.remove("copied"); b.textContent = "⧉"; }, 1500);
+});
+
+/* ----------------------------- Init ----------------------------- */
+renderExamples();
+renderHistory(-1);
+syncPersonaDesc();
+tokEstimate();
+</script>
+</body>
+</html>

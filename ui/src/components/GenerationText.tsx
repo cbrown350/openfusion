@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { copyText } from "../api";
 
 /**
- * Render a model's generated text. We preserve whitespace + render common
- * markdown lightly (headings, bold, inline code, code fences, bullet/numbered
- * lists, paragraphs) without pulling in a full markdown dep. Falls back to
- * whitespace-pre-wrap for anything unrecognized.
+ * Render a model's generated text as GitHub-Flavored Markdown (tables, task lists,
+ * strikethrough, autolinks). react-markdown renders to React elements without
+ * dangerouslySetInnerHTML. Component overrides below match the prior hand-rolled
+ * renderer's styling (teal headings, teal inline code, code block backgrounds).
  */
 export function GenerationText({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -30,136 +32,63 @@ export function GenerationText({ text }: { text: string }) {
           {copied ? "✓" : "⧉"}
         </button>
       </div>
-      <div className="generation">{renderMarkdown(text)}</div>
+      <div>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+          {text}
+        </ReactMarkdown>
+      </div>
     </div>
   );
 }
 
-/** Minimal, safe markdown-ish renderer (no dangerouslySetInnerHTML). */
-function renderMarkdown(src: string) {
-  const lines = src.split("\n");
-  const out: React.ReactNode[] = [];
-  let inCode = false;
-  let codeBuf: string[] = [];
-  let listBuf: React.ReactNode[] = [];
-  let para: string[] = [];
+/** Props for a custom react-markdown component: the element's native props + the mdast node. */
+type MdProps = { children?: ReactNode; className?: string };
 
-  const flushPara = () => {
-    if (para.length) {
-      out.push(
-        <p key={`p-${out.length}`} className="mb-2 leading-relaxed">
-          {inline(para.join(" "))}
-        </p>,
+/** Map markdown elements to the existing Tailwind styling. */
+const components: Components = {
+  h1: ({ className, ...p }: MdProps) => <p className={`mb-1 font-semibold text-base text-[#4cd0b0] ${className ?? ""}`} {...p} />,
+  h2: ({ className, ...p }: MdProps) => <p className={`mb-1 font-semibold text-base text-[#4cd0b0] ${className ?? ""}`} {...p} />,
+  h3: ({ className, ...p }: MdProps) => <p className={`mb-1 font-semibold text-sm text-[#4cd0b0] ${className ?? ""}`} {...p} />,
+  h4: ({ className, ...p }: MdProps) => <p className={`mb-1 font-semibold text-sm ${className ?? ""}`} {...p} />,
+  p: ({ className, ...p }: MdProps) => <p className={`mb-2 leading-relaxed ${className ?? ""}`} {...p} />,
+  ul: ({ className, ...p }: MdProps) => <ul className={`mb-2 ml-5 list-disc space-y-0.5 ${className ?? ""}`} {...p} />,
+  ol: ({ className, ...p }: MdProps) => <ol className={`mb-2 ml-5 list-decimal space-y-0.5 ${className ?? ""}`} {...p} />,
+  li: ({ className, ...p }: MdProps) => <li className={`text-sm leading-relaxed ${className ?? ""}`} {...p} />,
+  code: ({ className, children, ...p }: MdProps) => {
+    // Inline code vs fenced block: react-markdown renders fenced code as <code className="language-*"> inside <pre>.
+    if (className && className.includes("language-")) {
+      return (
+        <code className={className} {...p}>
+          {children}
+        </code>
       );
-      para = [];
     }
-  };
-  const flushList = () => {
-    if (listBuf.length) {
-      out.push(
-        <ul key={`ul-${out.length}`} className="mb-2 ml-5 list-disc space-y-0.5">
-          {listBuf}
-        </ul>,
-      );
-      listBuf = [];
-    }
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.startsWith("```")) {
-      if (inCode) {
-        out.push(
-          <pre key={`pre-${out.length}`} className="mb-2 overflow-x-auto rounded bg-black/40 p-2 text-xs">
-            <code>{codeBuf.join("\n")}</code>
-          </pre>,
-        );
-        codeBuf = [];
-        inCode = false;
-      } else {
-        flushPara();
-        flushList();
-        inCode = true;
-      }
-      continue;
-    }
-    if (inCode) {
-      codeBuf.push(line);
-      continue;
-    }
-    const h = /^(#{1,4})\s+(.*)$/.exec(line);
-    if (h) {
-      flushPara();
-      flushList();
-      const lvl = h[1].length;
-      out.push(
-        <p key={`h-${out.length}`} className={`mb-1 font-semibold ${lvl <= 2 ? "text-base text-[#4cd0b0]" : "text-sm"}`}>
-          {inline(h[2])}
-        </p>,
-      );
-      continue;
-    }
-    const ul = /^\s*[-*]\s+(.*)$/.exec(line);
-    if (ul) {
-      flushPara();
-      listBuf.push(
-        <li key={`li-${out.length}-${i}`} className="text-sm leading-relaxed">
-          {inline(ul[1])}
-        </li>,
-      );
-      continue;
-    }
-    const ol = /^\s*\d+\.\s+(.*)$/.exec(line);
-    if (ol) {
-      flushPara();
-      listBuf.push(
-        <li key={`li-${out.length}-${i}`} className="text-sm leading-relaxed">
-          {inline(ol[1])}
-        </li>,
-      );
-      continue;
-    }
-    if (line.trim() === "") {
-      flushPara();
-      flushList();
-      continue;
-    }
-    listBuf.length && flushList();
-    para.push(line);
-  }
-  if (inCode && codeBuf.length) {
-    out.push(
-      <pre key={`pre-${out.length}`} className="mb-2 overflow-x-auto rounded bg-black/40 p-2 text-xs">
-        <code>{codeBuf.join("\n")}</code>
-      </pre>,
+    return (
+      <code className="rounded bg-black/40 px-1 text-xs text-[#4cd0b0]" {...p}>
+        {children}
+      </code>
     );
-  }
-  flushList();
-  flushPara();
-  return out;
-}
-
-/** Inline formatting: **bold**, `code`. Returns React nodes. */
-function inline(text: string): React.ReactNode[] {
-  const nodes: React.ReactNode[] = [];
-  const re = /(\*\*[^*]+\*\*|`[^`]+`)/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  let k = 0;
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) nodes.push(text.slice(last, m.index));
-    const tok = m[0];
-    if (tok.startsWith("**")) {
-      nodes.push(<strong key={`b-${k++}`}>{tok.slice(2, -2)}</strong>);
-    } else {
-      nodes.push(
-        <code key={`c-${k++}`} className="rounded bg-black/40 px-1 text-xs text-[#4cd0b0]">
-          {tok.slice(1, -1)}
-        </code>,
-      );
-    }
-    last = m.index + tok.length;
-  }
-  if (last < text.length) nodes.push(text.slice(last));
-  return nodes;
-}
+  },
+  pre: ({ className, ...p }: MdProps) => (
+    <pre className={`mb-2 overflow-x-auto rounded bg-black/40 p-2 text-xs ${className ?? ""}`} {...p} />
+  ),
+  a: ({ className, ...p }: MdProps) => (
+    <a className={`text-[#4cd0b0] underline ${className ?? ""}`} target="_blank" rel="noreferrer" {...p} />
+  ),
+  table: ({ className, ...p }: MdProps) => (
+    <div className="mb-2 overflow-x-auto">
+      <table className={`w-full border-collapse text-sm ${className ?? ""}`} {...p} />
+    </div>
+  ),
+  thead: ({ className, ...p }: MdProps) => <thead className={`text-left text-white/60 ${className ?? ""}`} {...p} />,
+  th: ({ className, ...p }: MdProps) => (
+    <th className={`border border-white/15 px-2 py-1 font-semibold ${className ?? ""}`} {...p} />
+  ),
+  td: ({ className, ...p }: MdProps) => (
+    <td className={`border border-white/15 px-2 py-1 align-top ${className ?? ""}`} {...p} />
+  ),
+  blockquote: ({ className, ...p }: MdProps) => (
+    <blockquote className={`mb-2 border-l-2 border-white/20 pl-3 text-white/70 ${className ?? ""}`} {...p} />
+  ),
+  hr: ({ className, ...p }: MdProps) => <hr className={`my-3 border-white/15 ${className ?? ""}`} {...p} />,
+};
